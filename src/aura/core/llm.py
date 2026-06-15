@@ -85,8 +85,10 @@ def _call_groq(
         messages.append({"role": "system", "content": system_instruction})
     messages.append({"role": "user", "content": prompt})
 
+    # gemma2-9b-it has separate quota — use as fallback
+    active_model = model or GROQ_MODEL
     response = _groq_client.chat.completions.create(
-        model=model or GROQ_MODEL,
+        model=active_model,
         messages=messages,
         temperature=temperature or TEMPERATURE,
         max_tokens=max_tokens or MAX_TOKENS_PER_CALL,

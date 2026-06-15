@@ -28,7 +28,14 @@ You receive statistical profiles of datasets and provide:
 Be specific and concise. No generic filler. Respond only in valid JSON."""
 
 
+# Simple in-memory cache — same source won't re-enrich in same session
+_schema_cache: dict[str, dict] = {}
+
+
 def run_schema_agent(source: str) -> dict[str, Any]:
+    if source in _schema_cache:
+        print(f"Schema cache hit for {source}")
+        return _schema_cache[source]
     """
     Full pipeline: profile the data, then enrich with LLM interpretation.
 
@@ -62,11 +69,13 @@ def run_schema_agent(source: str) -> dict[str, Any]:
     cost = get_session_cost()
     print(f"Done. Cost: ${cost['total_usd']:.6f} | Tokens: {cost['input_tokens']} in / {cost['output_tokens']} out")
 
-    return {
+    result = {
         "profile": profile,
         "enrichment": enrichment,
         "cost": cost,
     }
+    _schema_cache[source] = result
+    return result
 
 
 def _build_enrichment_prompt(profile: dict) -> str:

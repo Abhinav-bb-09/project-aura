@@ -258,26 +258,88 @@ def build_graph() -> StateGraph:
 def run_aura(question: str, source_path: str, db_path: str) -> dict:
     """
     Run the full Aura pipeline for a user question.
-
-    Parameters
-    ----------
-    question    : natural language question
-    source_path : path to dataset file (for schema profiling)
-    db_path     : path to SQLite database (for SQL execution)
-
-    Returns
-    -------
-    The final_output dict from the output_node
+    Collects results directly in Python for reliability.
     """
     reset_session_cost()
 
-    graph = build_graph()
+    # ── Stage 1: Schema ───────────────────────────────────────
+    print("\n" + "="*50)
+    print("NODE: Schema Discovery")
+    print("="*50)
+    schema_result = run_schema_agent(source_path)
+    schema_profile = schema_result["profile"]
 
-    initial_state = AuraState(
+    # ── Stage 2: Engineer ─────────────────────────────────────
+    print("\n" + "="*50)
+    print("NODE: Engineer")
+    print("="*50)
+    eng_result = run_engineer_agent(
         question=question,
         db_path=db_path,
-        source_path=source_path,
+        schema_profile=schema_profile,
     )
 
-    final_state = graph.invoke(initial_state)
-    return final_state["final_output"]
+    if not eng_result["success"]:
+        return {
+            "question": question,
+            "error": "SQL generation failed after max attempts",
+            "sql": eng_result["final_sql"],
+            "confidence_score": 0,
+            "confidence_label": "red",
+            "interpretation": {},
+            "strategy": {},
+            "critic_verdict": "REVISE",
+            "critic_score": 0,
+            "critic_review": {},
+            "revision_count": 0,
+            "total_cost_usd": get_session_cost()["total_usd"],
+        }
+
+    # ── Stage 3: Scientist ────────────────────────────────────
+    print("\n" + "="*50)
+    print("NODE: Scientist")
+    print("="*50)
+    sci_result = run_scientist_agent(
+        dataframe=eng_result["dataframe"],
+        question=question,
+        sql=eng_result["final_sql"],
+    )
+
+    # ── Stage 4: Strategist ───────────────────────────────────
+    print("\n" + "="*50)
+    print("NODE: Strategist")
+    print("="*50)
+    strat_result = run_strategist_agent(
+        question=question,
+        scientist_result=sci_result,
+        engineer_result=eng_result,
+    )
+
+    # ── Stage 5: Critic ───────────────────────────────────────
+    print("\n" + "="*50)
+    print("NODE: Critic")
+    print("="*50)
+    critic_result = run_critic_agent(
+        question=question,
+        engineer_result=eng_result,
+        scientist_result=sci_result,
+        strategist_result=strat_result,
+    )
+
+    cost = get_session_cost()
+
+    return {
+        "question"          : question,
+        "sql"               : eng_result["final_sql"],
+        "sql_attempts"      : eng_result["total_attempts"],
+        "confidence_score"  : sci_result["confidence_score"],
+        "confidence_label"  : sci_result["confidence_label"],
+        "statistical_analysis": sci_result["stats"],
+        "interpretation"    : sci_result["interpretation"],
+        "strategy"          : strat_result["recommendations"],
+        "critic_verdict"    : critic_result["verdict"],
+        "critic_score"      : critic_result["overall_score"],
+        "critic_review"     : critic_result["review"],
+        "revision_count"    : 0,
+        "total_cost_usd"    : cost["total_usd"],
+    }
