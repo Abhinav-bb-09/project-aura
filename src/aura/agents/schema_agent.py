@@ -90,14 +90,14 @@ def _build_enrichment_prompt(profile: dict) -> str:
                  f"{profile['summary']['total_columns']} columns\n")
 
     # For large databases, only profile the 5 most important tables
-    table_items = list(profile["tables"].items())[:5]
+    table_items = list(profile["tables"].items())[:3]
 
     for table_name, table in table_items:
         lines.append(f"Table: {table_name} ({table['row_count']} rows)")
         lines.append(f"Keys: {table['candidate_keys']}")
 
         # Max 6 columns per table
-        col_items = list(table["columns"].items())[:6]
+        col_items = list(table["columns"].items())[:4]
         for col_name, col in col_items:
             line = f"  - {col_name}: {col['semantic_type']}"
             if col["semantic_type"] == "numeric":
