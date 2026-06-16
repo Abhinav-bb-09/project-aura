@@ -81,6 +81,46 @@ def run_schema_agent(source: str) -> dict[str, Any]:
 def _build_enrichment_prompt(profile: dict) -> str:
     """
     Build a focused prompt from the profile.
+    Hard token budget: keep under 2000 tokens total.
+    """
+    lines = []
+    lines.append(f"Dataset: {profile['source_path']}")
+    lines.append(f"Format: {profile['file_type'].upper()}")
+    lines.append(f"Size: {profile['summary']['total_rows']:,} rows, "
+                 f"{profile['summary']['total_columns']} columns\n")
+
+    # For large databases, only profile the 5 most important tables
+    table_items = list(profile["tables"].items())[:5]
+
+    for table_name, table in table_items:
+        lines.append(f"Table: {table_name} ({table['row_count']} rows)")
+        lines.append(f"Keys: {table['candidate_keys']}")
+
+        # Max 6 columns per table
+        col_items = list(table["columns"].items())[:6]
+        for col_name, col in col_items:
+            line = f"  - {col_name}: {col['semantic_type']}"
+            if col["semantic_type"] == "numeric":
+                line += f", range [{col.get('min','?')}–{col.get('max','?')}]"
+            if "top_values" in col:
+                top = list(col["top_values"].keys())[:2]
+                line += f", e.g. {top}"
+            lines.append(line)
+        lines.append("")
+
+    lines.append("""Respond with JSON:
+{
+  "dataset_summary": "2 sentence description",
+  "column_descriptions": {"col_name": "description"},
+  "data_quality_issues": [{"column": "name", "issue": "description", "severity": "high|medium|low"}],
+  "analytical_questions": ["question 1", "question 2", "question 3"],
+  "recommended_target_variable": "column_name or null",
+  "overall_quality_score": 0
+}""")
+
+    return "\n".join(lines)
+    """
+    Build a focused prompt from the profile.
     We deliberately summarize — not dump the raw dict — to save tokens.
     """
     lines = []
