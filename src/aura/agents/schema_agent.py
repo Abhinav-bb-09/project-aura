@@ -129,7 +129,7 @@ def _build_enrichment_prompt(profile: dict) -> str:
     lines.append(f"Size: {profile['summary']['total_rows']:,} rows, {profile['summary']['total_columns']} columns\n")
 
     # Cap at 10 tables for large databases like Northwind
-    table_items = list(profile["tables"].items())[:10]
+    table_items = list(profile["tables"].items())[:3]
     for table_name, table in table_items:
         lines.append(f"Table: {table_name}")
         lines.append(f"Candidate primary keys: {table['candidate_keys']}")
